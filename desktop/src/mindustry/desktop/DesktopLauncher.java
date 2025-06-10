@@ -34,6 +34,7 @@ public class DesktopLauncher extends ClientLauncher{
     
     boolean useDiscord = !OS.hasProp("nodiscord"), loadError = false;
     Throwable steamError;
+    String server_addr = "NONE";
 
     public static void main(String[] arg){
         try{
@@ -44,7 +45,7 @@ public class DesktopLauncher extends ClientLauncher{
                 width = 900;
                 height = 700;
                 gl30Minor = 2;
-                gl30 = true;
+                gl30 = true;    
                 for(int i = 0; i < arg.length; i++){
                     if(arg[i].charAt(0) == '-'){
                         String name = arg[i].substring(1);
@@ -72,14 +73,24 @@ public class DesktopLauncher extends ClientLauncher{
             handleCrash(e);
         }
     }
-
     public DesktopLauncher(String[] args){
         this.args = args;
         
         Version.init();
         boolean useSteam = Version.modifier.contains("steam");
         testMobile = Seq.with(args).contains("-testMobile");
-
+        for(int i = 0; i < args.length; i++){
+            if(args[i].charAt(0) == '-'){
+                String name = args[i].substring(1);
+                try{
+                    switch(name){
+                        case "server": server_addr = args[i + 1];
+                    }
+                }catch(NumberFormatException number){
+                    Log.warn("Invalid parameter number value.");
+                }
+            }
+        }
         if(useDiscord){
             try{
                 DiscordRPC.connect(discordID);
@@ -93,7 +104,18 @@ public class DesktopLauncher extends ClientLauncher{
                 Log.warn("Failed to initialize Discord RPC - you are likely using a JVM <16.");
             }
         }
-
+        Events.on(ClientLoadEvent.class, event -> { 
+            // Now (if -server option is present) we inject server to serverlist and automaticly connect to it.
+            if (Seq.with(args).contains("-server")) {
+                Log.info("Autoconnecting to server " + server_addr);
+                int port = Vars.port; // TODO: Use port specified in Vars.
+                if (server_addr.contains(":")) {
+                    port = Strings.parseInt(server_addr.substring(server_addr.indexOf(":")+1));
+                    server_addr = server_addr.substring(0, server_addr.indexOf(":"));
+                }
+                ui.join.connect(server_addr, port);
+            }
+        });
         if(useSteam){
 
             Events.on(ClientLoadEvent.class, event -> {
